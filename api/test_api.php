@@ -1,25 +1,36 @@
 <?php
+// Carregar autoload do Composer
+require_once __DIR__ . '/vendor/autoload.php';
 
-// Script de teste simples para a API
+// Carregar o .env
+$dotenv = Dotenv\Dotenv::createImmutable(__DIR__);
+$dotenv->load();
 
-// Carregar variáveis de ambiente de um arquivo .env se ele existir
-if (file_exists(__DIR__ . '/vendor/autoload.php')) {
-    require_once __DIR__ . '/vendor/autoload.php';
-    $dotenv = Dotenv\Dotenv::createImmutable(__DIR__);
-    $dotenv->load();
+// Função para obter variável de ambiente com fallback
+function env($key) {
+    if (isset($_ENV[$key])) return $_ENV[$key];
+    if (getenv($key) !== false) return getenv($key);
+    if (isset($_SERVER[$key])) return $_SERVER[$key];
+    return null;
 }
 
-// Configurações do banco de dados a partir de variáveis de ambiente
-$db_host = getenv('DB_HOST');
-$db_port = getenv('DB_PORT');
-$db_name = getenv('DB_NAME');
-$db_user = getenv('DB_USER');
-$db_pass = getenv('DB_PASS');
-$api_url = getenv('API_URL');
+// Atribuir variáveis do ambiente
+$db_host = env('DB_HOST');
+$db_port = env('DB_PORT');
+$db_name = env('DB_NAME');
+$db_user = env('DB_USER');
+$db_pass = env('DB_PASS');
+$api_url = env('API_URL');
 
-// Validar que todas as variáveis de ambiente necessárias estão definidas
+// Verificação
+echo "Verificando variáveis do .env:\n";
+echo "DB_HOST: $db_host\n";
+echo "DB_USER: $db_user\n";
+echo "API_URL: $api_url\n";
+
+// Validar que todas as variáveis necessárias estão definidas
 if (!$db_host || !$db_port || !$db_name || !$db_user || !$db_pass || !$api_url) {
-    die("Erro: Uma ou mais variáveis de ambiente necessárias (DB_HOST, DB_PORT, DB_NAME, DB_USER, DB_PASS, API_URL) não estão definidas.\n");
+    die("Erro: Uma ou mais variáveis de ambiente não estão definidas.\n");
 }
 
 $dsn = "mysql:host=$db_host;port=$db_port;dbname=$db_name;charset=utf8mb4";
@@ -35,14 +46,14 @@ $test_pass = 'password';
 $hashed_pass = password_hash($test_pass, PASSWORD_DEFAULT);
 $id_produtor = null;
 
-// Conectar ao banco de dados
+// Conectar ao banco
 try {
     $conn = new PDO($dsn, $db_user, $db_pass, $options);
 } catch (PDOException $e) {
     die("Erro ao conectar ao banco de dados: " . $e->getMessage() . "\n");
 }
 
-// Configurar um manipulador de encerramento para garantir a limpeza
+// Cleanup no shutdown
 register_shutdown_function(function() use ($conn, &$id_produtor) {
     if ($id_produtor) {
         $stmt = $conn->prepare("DELETE FROM produtor WHERE id_produtor = :id");
@@ -60,15 +71,15 @@ try {
     echo "Usuário de teste inserido com ID: $id_produtor.\n";
 
     // Teste de login
-    $data = array('email' => $test_email, 'senha' => $test_pass);
+    $data = ['email' => $test_email, 'senha' => $test_pass];
 
-    $options = array(
-        'http' => array(
+    $options = [
+        'http' => [
             'header'  => "Content-type: application/json\r\n",
             'method'  => 'POST',
             'content' => json_encode($data)
-        )
-    );
+        ]
+    ];
 
     $context  = stream_context_create($options);
     $result = file_get_contents($api_url, false, $context);
@@ -77,7 +88,7 @@ try {
         echo "Teste falhou: não foi possível conectar à API.\n";
     } else {
         $response = json_decode($result);
-        if (isset($response->status) && $response->status == 'sucesso' && isset($response->token)) {
+        if (isset($response->status) && $response->status === 'sucesso' && isset($response->token)) {
             echo "Teste de login passou.\n";
         } else {
             echo "Teste de login falhou.\n";
@@ -88,5 +99,3 @@ try {
 } catch (Exception $e) {
     echo "Ocorreu um erro durante o teste: " . $e->getMessage() . "\n";
 }
-
-?>
